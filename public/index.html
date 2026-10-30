@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photocopier</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+  :root { --bg: #f4f4f1; --fg: #1d1d1b; --muted: #6b6b66; --accent: #2457d6; --ok: #1f8a4c; --err: #c0392b; --card: #fff; --line: #deded8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --fg: #ecece8; --muted: #9a9a94; --accent: #6b93ff; --ok: #46c27b; --err: #ff6b5b; --card: #222220; --line: #34342f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px; }
+  header { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; margin-bottom: 32px; }
+  h1 { margin: 0 0 8px; font-size: 28px; }
+  p { margin: 0 0 6px; color: var(--muted); }
+  code { color: var(--fg); background: var(--card); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; }
+  #qr { background: #fff; padding: 10px; border-radius: 12px; line-height: 0; }
+  #qr:empty { display: none; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .card.new { outline: 3px solid var(--accent); }
+  .card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0000000d; cursor: pointer; }
+  .bar { display: flex; gap: 8px; padding: 10px; align-items: center; }
+  .bar span { flex: 1; color: var(--muted); font-size: 14px; }
+  button { font: inherit; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff; font-weight: 600; }
+  button.ghost { background: transparent; color: var(--muted); padding: 8px; }
+  button.done { background: var(--ok); }
+  #empty { color: var(--muted); padding: 48px 0; text-align: center; border: 2px dashed var(--line); border-radius: 14px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg);
+           padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  #toast.show { opacity: 1; }
+  .opt { font-size: 14px; color: var(--muted); margin-top: 10px; display: block; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <div id="qr"></div>
+    <div>
+      <h1>📷 Photocopier</h1>
+      <p>QR-Code mit dem Handy scannen (gleiches WLAN), Foto machen – es erscheint hier.</p>
+      <p>Handy-Adresse: <code id="url">…</code></p>
+      <label class="opt"><input id="auto" type="checkbox" checked> Neue Fotos automatisch in die Zwischenablage kopieren (wenn dieses Fenster aktiv ist)</label>
+    </div>
+  </header>
+  <div id="empty">Noch keine Fotos. Warte auf das Handy …</div>
+  <div id="grid"></div>
+</main>
+<div id="toast"></div>
+
+<script>
+const grid = document.getElementById('grid');
+const empty = document.getElementById('empty');
+const toast = document.getElementById('toast');
+let toastTimer;
+
+function showToast(text) {
+  toast.textContent = text;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+fetch('/info').then((r) => r.json()).then(({ phoneUrls }) => {
+  const url = phoneUrls[0] || location.origin + '/phone';
+  document.getElementById('url').textContent = url;
+  if (window.qrcode) {
+    const qr = qrcode(0, 'M');
+    qr.addData(url);
+    qr.make();
+    document.getElementById('qr').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0 });
+  }
+});
+
+// Die Zwischenablage kann nur PNG sicher aufnehmen – deshalb wird jedes Foto zu PNG umgewandelt.
+async function toPng(id) {
+  const blob = await (await fetch('/photos/' + id)).blob();
+  if (blob.type === 'image/png') return blob;
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0);
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG fehlgeschlagen'))), 'image/png'));
+}
+
+async function copy(id, button, silent = false) {
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) {
+      throw new Error('Browser unterstützt keine Bild-Zwischenablage (Seite über http://localhost öffnen)');
+    }
+    // Promise direkt übergeben, damit die Nutzer-Geste (Klick) erhalten bleibt – wichtig für Safari.
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': toPng(id) })]);
+    if (button) {
+      button.textContent = '✓ Kopiert';
+      button.classList.add('done');
+      setTimeout(() => { button.textContent = 'Kopieren'; button.classList.remove('done'); }, 2000);
+    }
+    showToast('In die Zwischenablage kopiert – jetzt mit Strg/⌘ + V einfügen');
+  } catch (e) {
+    if (!silent) showToast('Kopieren fehlgeschlagen: ' + e.message);
+    else showToast('Neues Foto da – zum Kopieren klicken');
+  }
+}
+
+function addCard(p, isNew) {
+  empty.style.display = 'none';
+  grid.querySelectorAll('.card.new').forEach((c) => c.classList.remove('new'));
+  const card = document.createElement('div');
+  card.className = 'card' + (isNew ? ' new' : '');
+  card.dataset.id = p.id;
+  card.innerHTML = `
+    <img src="/photos/${p.id}" alt="Foto" title="Klicken zum Kopieren">
+    <div class="bar">
+      <span>${new Date(p.time).toLocaleTimeString('de-DE')} · ${Math.round(p.size / 1024)} KB</span>
+      <button class="ghost" data-act="del" title="Löschen">🗑</button>
+      <a href="/photos/${p.id}" download="foto-${p.id}.${p.type.split('/')[1]}"><button class="ghost" title="Herunterladen">⬇</button></a>
+      <button data-act="copy">Kopieren</button>
+    </div>`;
+  const copyBtn = card.querySelector('[data-act=copy]');
+  copyBtn.onclick = () => copy(p.id, copyBtn);
+  card.querySelector('img').onclick = () => copy(p.id, copyBtn);
+  card.querySelector('[data-act=del]').onclick = () => fetch('/photos/' + p.id, { method: 'DELETE' });
+  grid.prepend(card);
+  return copyBtn;
+}
+
+function removeCard(id) {
+  grid.querySelector(`[data-id="${id}"]`)?.remove();
+  if (!grid.children.length) empty.style.display = '';
+}
+
+const events = new EventSource('/events');
+events.addEventListener('list', (e) => {
+  grid.innerHTML = '';
+  const list = JSON.parse(e.data);
+  if (!list.length) empty.style.display = '';
+  list.slice().reverse().forEach((p) => addCard(p, false));
+});
+events.addEventListener('photo', (e) => {
+  const p = JSON.parse(e.data);
+  const btn = addCard(p, true);
+  if (document.getElementById('auto').checked && document.hasFocus()) copy(p.id, btn, true);
+  else showToast('Neues Foto da – zum Kopieren klicken');
+});
+events.addEventListener('delete', (e) => removeCard(JSON.parse(e.data).id));
+</script>
+</body>
+</html>
