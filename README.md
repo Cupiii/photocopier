@@ -2,7 +2,24 @@
 
 Mit dem Handy ein Foto machen und es am Desktop direkt in die Zwischenablage kopieren.
 
-## Start
+## Variante 1: Kostenlos in der Cloud (ohne Node.js)
+
+Die Datei `docs/index.html` ist eine reine statische Seite. Handy und Desktop verbinden sich
+direkt per WebRTC; der kostenlose [PeerJS](https://peerjs.com)-Server vermittelt nur den
+Verbindungsaufbau, die Fotos gehen direkt vom Handy zum Desktop (nicht über fremde Server).
+
+Hosten z. B. kostenlos mit **GitHub Pages** (Repository muss dafür öffentlich sein):
+Settings → Pages → „Deploy from a branch“ → Branch `main`, Ordner `/docs`.
+Alternativ funktionieren auch Netlify oder Cloudflare Pages (auch mit privatem Repository).
+
+1. Die Seite am Desktop öffnen – sie zeigt einen QR-Code.
+2. QR-Code mit dem Handy scannen (das Handy darf auch im Mobilfunknetz sein).
+3. Foto machen → am Desktop **Kopieren** klicken → mit Strg/⌘ + V einfügen.
+
+Der Handy-Link bleibt pro Desktop-Browser gleich und kann als Lesezeichen gespeichert werden.
+In seltenen Netzwerken (z. B. strenge Firmen-Firewalls) kann die Direktverbindung scheitern.
+
+## Variante 2: Lokal mit Node.js
 
 Voraussetzung: [Node.js](https://nodejs.org) ab Version 18. Es werden keine Pakete installiert.
 

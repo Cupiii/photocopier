@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Photocopier</title>
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<style>
+  :root { --bg: #f4f4f1; --fg: #1d1d1b; --muted: #6b6b66; --accent: #2457d6; --ok: #1f8a4c; --err: #c0392b; --card: #fff; --line: #deded8; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #161615; --fg: #ecece8; --muted: #9a9a94; --accent: #6b93ff; --ok: #46c27b; --err: #ff6b5b; --card: #222220; --line: #34342f; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, sans-serif; }
+  [hidden] { display: none !important; }
+  p { margin: 0 0 6px; color: var(--muted); }
+  code { color: var(--fg); background: var(--card); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; word-break: break-all; }
+  button { font: inherit; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff; font-weight: 600; }
+  button.ghost { background: transparent; color: var(--muted); padding: 8px; }
+  button.done { background: var(--ok); }
+  .ok { color: var(--ok); } .err { color: var(--err); }
+
+  /* Desktop */
+  #desk { max-width: 1100px; margin: 0 auto; padding: 32px 16px; }
+  #desk header { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; margin-bottom: 32px; }
+  #desk h1 { margin: 0 0 8px; font-size: 28px; }
+  #qr { background: #fff; padding: 10px; border-radius: 12px; line-height: 0; }
+  #qr:empty { display: none; }
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .card.new { outline: 3px solid var(--accent); }
+  .card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0000000d; cursor: pointer; }
+  .bar { display: flex; gap: 8px; padding: 10px; align-items: center; }
+  .bar span { flex: 1; color: var(--muted); font-size: 14px; }
+  #empty { color: var(--muted); padding: 48px 0; text-align: center; border: 2px dashed var(--line); border-radius: 14px; }
+  .opt { font-size: 14px; color: var(--muted); margin-top: 10px; display: block; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg);
+           padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; text-align: center; }
+  #toast.show { opacity: 1; }
+
+  /* Handy */
+  #phone { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+           gap: 20px; padding: 24px 16px; text-align: center; }
+  #phone h1 { margin: 0; font-size: 22px; }
+  label.shoot { display: flex; align-items: center; justify-content: center; width: 200px; height: 200px; border-radius: 50%;
+                background: var(--accent); color: #fff; font-size: 20px; font-weight: 600; cursor: pointer;
+                box-shadow: 0 8px 24px rgb(0 0 0 / .2); user-select: none; -webkit-tap-highlight-color: transparent; }
+  label.shoot:active { transform: scale(.96); }
+  input[type=file] { display: none; }
+  #preview { max-width: 100%; max-height: 35dvh; border-radius: 12px; }
+  #pstatus { min-height: 1.4em; font-weight: 500; }
+  .small { font-size: 14px; }
+  .small label { color: var(--muted); }
+</style>
+</head>
+<body>
+
+<main id="desk" hidden>
+  <header>
+    <div id="qr"></div>
+    <div>
+      <h1>📷 Photocopier</h1>
+      <p>QR-Code mit dem Handy scannen, Foto machen – es erscheint hier.</p>
+      <p>Handy-Link: <code id="link">…</code></p>
+      <p id="dstatus">Verbinde …</p>
+      <label class="opt"><input id="auto" type="checkbox" checked> Neue Fotos automatisch in die Zwischenablage kopieren (wenn dieses Fenster aktiv ist)</label>
+    </div>
+  </header>
+  <div id="empty">Noch keine Fotos. Warte auf das Handy …</div>
+  <div id="grid"></div>
+</main>
+
+<main id="phone" hidden>
+  <h1>📷 Photocopier</h1>
+  <label class="shoot" for="camera">Foto machen</label>
+  <input id="camera" type="file" accept="image/*" capture="environment">
+  <img id="preview" alt="Vorschau" hidden>
+  <div id="pstatus">Verbinde mit dem Desktop …</div>
+  <div class="small"><label><input id="full" type="checkbox"> Originalgröße senden</label></div>
+  <p class="small"><label for="pick" style="text-decoration: underline; cursor: pointer;">oder Bild aus Galerie wählen</label></p>
+  <input id="pick" type="file" accept="image/*">
+</main>
+
+<div id="toast"></div>
+
+<script>
+// Handy und Desktop verbinden sich direkt per WebRTC (PeerJS). Der kostenlose PeerJS-Server
+// vermittelt nur den Verbindungsaufbau – die Fotos selbst gehen direkt vom Handy zum Desktop.
+const PEER_OPTIONS = window.PEER_OPTIONS || {}; // nur zum lokalen Testen überschreibbar
+const MAX_EDGE = 2560;
+const $ = (id) => document.getElementById(id);
+const desktopId = location.hash.slice(1);
+
+function setStatus(el, text, cls = '') { el.textContent = text; el.className = cls; }
+
+function storage(key, value) {
+  try {
+    if (value === undefined) return localStorage.getItem(key);
+    localStorage.setItem(key, value);
+  } catch { return null; }
+}
+
+if (desktopId) phone(); else desktop();
+
+// ---------- Desktop ----------
+function desktop() {
+  $('desk').hidden = false;
+  const status = $('dstatus');
+  const photos = new Map(); // id -> Blob
+  let toastTimer;
+
+  // Feste ID pro Browser, damit ein Lesezeichen auf dem Handy dauerhaft funktioniert.
+  let id = storage('photocopier-id');
+  if (!id) {
+    id = 'photocopier-' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+    storage('photocopier-id', id);
+  }
+
+  const link = location.origin + location.pathname + '#' + id;
+  $('link').textContent = link;
+  if (window.qrcode) {
+    const qr = qrcode(0, 'M');
+    qr.addData(link);
+    qr.make();
+    $('qr').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0 });
+  }
+
+  function showToast(text) {
+    const toast = $('toast');
+    toast.textContent = text;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  }
+
+  // Die Zwischenablage nimmt zuverlässig nur PNG – deshalb wird jedes Foto zu PNG umgewandelt.
+  async function toPng(blob) {
+    if (blob.type === 'image/png') return blob;
+    const bitmap = await createImageBitmap(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    canvas.getContext('2d').drawImage(bitmap, 0, 0);
+    return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG fehlgeschlagen'))), 'image/png'));
+  }
+
+  async function copy(pid, button, silent = false) {
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Browser unterstützt keine Bild-Zwischenablage');
+      // Promise direkt übergeben, damit die Nutzer-Geste (Klick) erhalten bleibt – wichtig für Safari.
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': toPng(photos.get(pid)) })]);
+      button.textContent = '✓ Kopiert';
+      button.classList.add('done');
+      setTimeout(() => { button.textContent = 'Kopieren'; button.classList.remove('done'); }, 2000);
+      showToast('In die Zwischenablage kopiert – jetzt mit Strg/⌘ + V einfügen');
+    } catch (e) {
+      showToast(silent ? 'Neues Foto da – zum Kopieren klicken' : 'Kopieren fehlgeschlagen: ' + e.message);
+    }
+  }
+
+  function addPhoto(blob) {
+    const pid = crypto.randomUUID();
+    photos.set(pid, blob);
+    $('empty').hidden = true;
+    $('grid').querySelectorAll('.card.new').forEach((c) => c.classList.remove('new'));
+    const url = URL.createObjectURL(blob);
+    const card = document.createElement('div');
+    card.className = 'card new';
+    card.innerHTML = `
+      <img src="${url}" alt="Foto" title="Klicken zum Kopieren">
+      <div class="bar">
+        <span>${new Date().toLocaleTimeString('de-DE')} · ${Math.round(blob.size / 1024)} KB</span>
+        <button class="ghost" data-act="del" title="Löschen">🗑</button>
+        <a href="${url}" download="foto-${Date.now()}.${blob.type.split('/')[1] || 'jpg'}" title="Herunterladen"><button class="ghost">⬇</button></a>
+        <button data-act="copy">Kopieren</button>
+      </div>`;
+    const copyBtn = card.querySelector('[data-act=copy]');
+    copyBtn.onclick = () => copy(pid, copyBtn);
+    card.querySelector('img').onclick = () => copy(pid, copyBtn);
+    card.querySelector('[data-act=del]').onclick = () => {
+      photos.delete(pid);
+      URL.revokeObjectURL(url);
+      card.remove();
+      if (!photos.size) $('empty').hidden = false;
+    };
+    $('grid').prepend(card);
+    if ($('auto').checked && document.hasFocus()) copy(pid, copyBtn, true);
+    else showToast('Neues Foto da – zum Kopieren klicken');
+  }
+
+  const peer = new Peer(id, PEER_OPTIONS);
+  peer.on('open', () => setStatus(status, '● Bereit – warte auf das Handy', 'ok'));
+  peer.on('disconnected', () => {
+    setStatus(status, 'Verbindung zum Vermittlungsserver verloren – verbinde neu …');
+    setTimeout(() => peer.reconnect(), 2000);
+  });
+  peer.on('error', (e) => {
+    if (e.type === 'unavailable-id') setStatus(status, 'Photocopier ist schon in einem anderen Tab geöffnet. Bitte diesen Tab schließen.', 'err');
+    else setStatus(status, 'Fehler: ' + e.message, 'err');
+  });
+  peer.on('connection', (conn) => {
+    conn.on('open', () => setStatus(status, '● Handy verbunden', 'ok'));
+    conn.on('data', (msg) => {
+      if (msg?.kind !== 'photo') return;
+      addPhoto(new Blob([msg.data], { type: msg.type }));
+      conn.send({ kind: 'ack' });
+    });
+    conn.on('close', () => setStatus(status, '● Bereit – warte auf das Handy', 'ok'));
+  });
+}
+
+// ---------- Handy ----------
+function phone() {
+  $('phone').hidden = false;
+  const status = $('pstatus');
+  const peer = new Peer(PEER_OPTIONS);
+  let conn = null;
+  let pendingAck = null;
+
+  function connect() {
+    return new Promise((resolve, reject) => {
+      if (conn?.open) return resolve(conn);
+      const c = peer.connect(desktopId, { reliable: true });
+      const timer = setTimeout(() => reject(new Error('Desktop nicht erreichbar – ist die Seite dort offen?')), 15000);
+      c.on('open', () => {
+        clearTimeout(timer);
+        conn = c;
+        setStatus(status, '● Mit Desktop verbunden', 'ok');
+        resolve(c);
+      });
+      c.on('data', (msg) => { if (msg?.kind === 'ack' && pendingAck) pendingAck(); });
+      c.on('close', () => { conn = null; setStatus(status, 'Verbindung getrennt – wird beim nächsten Foto neu aufgebaut'); });
+      c.on('error', (e) => { clearTimeout(timer); reject(e); });
+    });
+  }
+
+  peer.on('open', () => connect().catch((e) => setStatus(status, e.message, 'err')));
+  peer.on('disconnected', () => setTimeout(() => peer.reconnect(), 2000));
+  peer.on('error', (e) => {
+    if (e.type === 'peer-unavailable') setStatus(status, 'Desktop nicht gefunden – ist die Seite dort geöffnet?', 'err');
+    else setStatus(status, 'Fehler: ' + e.message, 'err');
+  });
+
+  async function shrink(file) {
+    if ($('full').checked) return file;
+    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => null);
+    if (!bitmap) return file;
+    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.round(bitmap.width * scale);
+    canvas.height = Math.round(bitmap.height * scale);
+    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return new Promise((resolve) => canvas.toBlob((b) => resolve(b || file), 'image/jpeg', 0.9));
+  }
+
+  async function handle(input) {
+    const file = input.files[0];
+    input.value = '';
+    if (!file) return;
+    $('preview').src = URL.createObjectURL(file);
+    $('preview').hidden = false;
+    setStatus(status, 'Sende …');
+    try {
+      const blob = await shrink(file);
+      const c = await connect();
+      const acked = new Promise((resolve, reject) => {
+        pendingAck = resolve;
+        setTimeout(() => reject(new Error('Keine Bestätigung vom Desktop')), 30000);
+      });
+      c.send({ kind: 'photo', type: blob.type || 'image/jpeg', data: await blob.arrayBuffer() });
+      await acked;
+      setStatus(status, '✓ Am Desktop angekommen', 'ok');
+      navigator.vibrate?.(60);
+    } catch (e) {
+      setStatus(status, 'Fehler: ' + e.message, 'err');
+    }
+  }
+
+  $('camera').addEventListener('change', (e) => handle(e.target));
+  $('pick').addEventListener('change', (e) => handle(e.target));
+}
+</script>
+</body>
+</html>
