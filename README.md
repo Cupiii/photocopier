@@ -17,6 +17,7 @@ Alternativ funktionieren auch Netlify oder Cloudflare Pages (auch mit privatem R
 3. Foto machen → am Desktop **Kopieren** klicken → mit Strg/⌘ + V einfügen.
 
 Der Handy-Link bleibt pro Desktop-Browser gleich und kann als Lesezeichen gespeichert werden.
+Mit „↻ Neuen Link erzeugen“ bekommt der Desktop einen neuen Link; der alte funktioniert dann nicht mehr.
 In seltenen Netzwerken (z. B. strenge Firmen-Firewalls) kann die Direktverbindung scheitern.
 
 ## Variante 2: Lokal mit Node.js

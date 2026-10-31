@@ -62,7 +62,8 @@
     <div>
       <h1>📷 Photocopier</h1>
       <p>QR-Code mit dem Handy scannen, Foto machen – es erscheint hier.</p>
-      <p>Handy-Link: <code id="link">…</code></p>
+      <p>Handy-Link: <code id="link">…</code>
+        <button id="newlink" class="ghost" title="Alter Link funktioniert danach nicht mehr">↻ Neuen Link erzeugen</button></p>
       <p id="dstatus">Verbinde …</p>
       <label class="opt"><input id="auto" type="checkbox" checked> Neue Fotos automatisch in die Zwischenablage kopieren (wenn dieses Fenster aktiv ist)</label>
     </div>
@@ -111,11 +112,22 @@ function desktop() {
   let toastTimer;
 
   // Feste ID pro Browser, damit ein Lesezeichen auf dem Handy dauerhaft funktioniert.
+  const newId = () => 'photocopier-' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
   let id = storage('photocopier-id');
   if (!id) {
-    id = 'photocopier-' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+    id = newId();
     storage('photocopier-id', id);
   }
+
+  // Neue Kennung = neuer Link; wer den alten Link hat, kann danach keine Fotos mehr schicken.
+  $('newlink').onclick = () => {
+    const warning = 'Neuen Handy-Link erzeugen?\n\nDer alte Link und gespeicherte Lesezeichen funktionieren danach nicht mehr.'
+      + (photos.size ? '\nDie angezeigten Fotos werden dabei entfernt.' : '');
+    if (!confirm(warning)) return;
+    storage('photocopier-id', newId());
+    peer.destroy();
+    location.reload();
+  };
 
   const link = location.origin + location.pathname + '#' + id;
   $('link').textContent = link;
