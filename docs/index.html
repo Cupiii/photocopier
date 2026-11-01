@@ -95,7 +95,8 @@
 
 <script>
 // Geräte verbinden sich direkt per WebRTC (PeerJS). Der kostenlose PeerJS-Server vermittelt nur den
-// Verbindungsaufbau – Fotos und Dateien gehen direkt von Gerät zu Gerät.
+// Verbindungsaufbau – Fotos und Dateien gehen verschlüsselt direkt von Gerät zu Gerät (nur wenn das
+// nicht klappt, über den TURN-Weiterleitungsserver von PeerJS, der die Daten nicht lesen kann).
 // Das Gerät ohne #kennung in der Adresse ist der "Host" (zeigt den QR-Code); alle, die den Link öffnen,
 // verbinden sich mit ihm. Host und verbundene Geräte können sich gegenseitig Dateien schicken.
 const PEER_OPTIONS = window.PEER_OPTIONS || {}; // nur zum lokalen Testen überschreibbar
