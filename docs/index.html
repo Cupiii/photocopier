@@ -55,6 +55,15 @@
   .bar { margin-top: auto; display: flex; gap: 4px; padding: 10px; align-items: center; }
   .bar .meta { flex: 1; color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #empty { color: var(--muted); padding: 40px 16px; text-align: center; border: 2px dashed var(--line); border-radius: 14px; }
+  .textbox { display: flex; gap: 8px; margin-top: 16px; align-items: stretch; max-width: 640px; }
+  body.client.touch .textbox { margin-left: auto; margin-right: auto; }
+  .textbox textarea { flex: 1; min-width: 0; font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+                      background: var(--card); color: var(--fg); resize: vertical; min-height: 44px; }
+  .transfer { margin-top: 8px; font-size: 14px; color: var(--muted); }
+  .transfer progress { display: block; width: 100%; max-width: 640px; height: 8px; margin-top: 4px; accent-color: var(--accent); }
+  body.client.touch .transfer progress { margin: 4px auto 0; }
+  .card .text { flex: 1; margin: 0; padding: 14px; min-height: 100px; max-height: 260px; overflow: auto; white-space: pre-wrap;
+                word-break: break-word; font: 15px/1.45 system-ui, sans-serif; }
   #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg); max-width: calc(100% - 32px);
            padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; text-align: center; }
   #toast.show { opacity: 1; }
@@ -66,7 +75,7 @@
     <div id="qr"></div>
     <div>
       <h1>📷 Photocopier</h1>
-      <p>QR-Code mit dem Handy oder einem anderen Rechner öffnen – dann Fotos und Dateien in beide Richtungen schicken.</p>
+      <p>QR-Code mit dem Handy oder einem anderen Rechner öffnen – dann Fotos, Dateien und Texte in beide Richtungen schicken.</p>
       <p>Link: <code id="link">…</code>
         <button id="newlink" class="ghost" title="Alter Link funktioniert danach nicht mehr">↻ Neuen Link erzeugen</button></p>
     </div>
@@ -84,10 +93,16 @@
     <span class="opt mouse-only">oder Dateien ins Fenster ziehen</span>
   </section>
   <label class="opt touch-only" style="margin-top: 12px"><input id="full" type="checkbox"> Fotos in Originalgröße senden</label>
+  <form class="textbox" id="textform">
+    <textarea id="text" rows="2" placeholder="Text oder Link senden …"></textarea>
+    <button type="submit">Senden</button>
+  </form>
   <div id="sendstatus"></div>
+  <div class="transfer" id="sendprogress" hidden><progress max="1" value="0"></progress></div>
 
   <h2>Empfangen</h2>
-  <label class="opt" style="margin-bottom: 12px"><input id="auto" type="checkbox" checked> Neue Bilder automatisch in die Zwischenablage kopieren (wenn dieses Fenster aktiv ist)</label>
+  <label class="opt" style="margin-bottom: 12px"><input id="auto" type="checkbox" checked> Neue Bilder und Texte automatisch in die Zwischenablage kopieren (wenn dieses Fenster aktiv ist)</label>
+  <div id="incoming"></div>
   <div id="empty">Noch nichts empfangen.</div>
   <div id="grid"></div>
 </main>
@@ -95,7 +110,8 @@
 
 <script>
 // Geräte verbinden sich direkt per WebRTC (PeerJS). Der kostenlose PeerJS-Server vermittelt nur den
-// Verbindungsaufbau – Fotos und Dateien gehen direkt von Gerät zu Gerät.
+// Verbindungsaufbau – Fotos und Dateien gehen verschlüsselt direkt von Gerät zu Gerät (nur wenn das
+// nicht klappt, über den TURN-Weiterleitungsserver von PeerJS, der die Daten nicht lesen kann).
 // Das Gerät ohne #kennung in der Adresse ist der "Host" (zeigt den QR-Code); alle, die den Link öffnen,
 // verbinden sich mit ihm. Host und verbundene Geräte können sich gegenseitig Dateien schicken.
 const PEER_OPTIONS = window.PEER_OPTIONS || {}; // nur zum lokalen Testen überschreibbar
@@ -104,8 +120,14 @@ const $ = (id) => document.getElementById(id);
 const hostId = location.hash.slice(1);
 const isHost = !hostId;
 const isTouch = matchMedia('(pointer: coarse)').matches;
-const items = new Map(); // empfangene Dateien: id -> { blob, name }
-const pendingAcks = new Map(); // gesendete Datei-id -> { remaining, resolve }
+// Dateien werden in Stücken geschickt; der Empfänger meldet zurück, wie viel angekommen ist.
+// Daraus entsteht der Fortschrittsbalken, und es muss nie die ganze Datei auf einmal in den Speicher.
+const CHUNK = 256 * 1024;
+const WINDOW = 4 * 1024 * 1024; // so viel darf unterwegs sein, bevor auf Rückmeldung gewartet wird
+const STALL_MS = 30000; // so lange ohne Rückmeldung gilt die Übertragung als abgebrochen
+const items = new Map(); // empfangene Dateien/Texte: id -> { blob, name } bzw. { text }
+const incoming = new Map(); // laufende Empfänge: id -> { conn, name, type, size, chunks, received, el }
+const outgoing = new Map(); // laufende Sendungen: id -> transfer()
 let toastTimer;
 
 document.body.classList.add(isHost ? 'host' : 'client', isTouch ? 'touch' : 'mouse');
@@ -147,17 +169,72 @@ async function toPng(blob) {
 }
 
 async function copy(id, button, silent = false) {
+  const item = items.get(id);
   try {
-    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Browser unterstützt keine Bild-Zwischenablage');
-    // Promise direkt übergeben, damit die Nutzer-Geste (Klick) erhalten bleibt – wichtig für Safari.
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': toPng(items.get(id).blob) })]);
+    if (item.text !== undefined) {
+      if (!navigator.clipboard?.writeText) throw new Error('Browser unterstützt keine Zwischenablage');
+      await navigator.clipboard.writeText(item.text);
+    } else {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Browser unterstützt keine Bild-Zwischenablage');
+      // Promise direkt übergeben, damit die Nutzer-Geste (Klick) erhalten bleibt – wichtig für Safari.
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': toPng(item.blob) })]);
+    }
     button.textContent = '✓ Kopiert';
     button.classList.add('done');
     setTimeout(() => { button.textContent = 'Kopieren'; button.classList.remove('done'); }, 2000);
     showToast('In die Zwischenablage kopiert – jetzt mit Strg/⌘ + V einfügen');
   } catch (e) {
-    showToast(silent ? 'Neues Bild da – zum Kopieren klicken' : 'Kopieren fehlgeschlagen: ' + e.message);
+    const what = item.text !== undefined ? 'Text' : 'Bild';
+    showToast(silent ? `Neuer ${what} da – zum Kopieren klicken` : 'Kopieren fehlgeschlagen: ' + e.message);
   }
+}
+
+function removeOnDelete(card, id, url) {
+  card.querySelector('[data-act=del]').onclick = () => {
+    items.delete(id);
+    if (url) URL.revokeObjectURL(url);
+    card.remove();
+    if (!items.size) $('empty').hidden = false;
+  };
+}
+
+function prependCard(card) {
+  $('empty').hidden = true;
+  $('grid').querySelectorAll('.card.new').forEach((c) => c.classList.remove('new'));
+  $('grid').prepend(card);
+}
+
+const timeNow = () => new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+function addText(text) {
+  const id = crypto.randomUUID();
+  items.set(id, { text });
+  const card = document.createElement('div');
+  card.className = 'card new';
+  card.innerHTML = `
+    <pre class="text"></pre>
+    <div class="bar">
+      <span class="meta"></span>
+      <button class="ghost" data-act="del" title="Entfernen">🗑</button>
+      <a class="btn ghost" data-act="open" title="Link öffnen" target="_blank" rel="noopener noreferrer" hidden>↗</a>
+      <button data-act="copy">Kopieren</button>
+    </div>`;
+  // Text kommt vom anderen Gerät – nur als Text einsetzen, nie als HTML.
+  card.querySelector('.text').textContent = text;
+  card.querySelector('.meta').textContent = `${timeNow()} · Text · ${text.length} Zeichen`;
+  // Besteht der Text nur aus einem Link, gibt es einen Knopf zum Öffnen (nur http/https).
+  if (/^https?:\/\/\S+$/i.test(text.trim())) {
+    const open = card.querySelector('[data-act=open]');
+    open.href = text.trim();
+    open.hidden = false;
+  }
+  removeOnDelete(card, id);
+  prependCard(card);
+
+  const copyBtn = card.querySelector('[data-act=copy]');
+  copyBtn.onclick = () => copy(id, copyBtn);
+  if ($('auto').checked && document.hasFocus()) copy(id, copyBtn, true);
+  else showToast('Neuer Text empfangen');
 }
 
 function canShare(file) {
@@ -169,8 +246,6 @@ function addItem(blob, name) {
   items.set(id, { blob, name });
   const isImage = blob.type.startsWith('image/');
   const url = URL.createObjectURL(blob);
-  $('empty').hidden = true;
-  $('grid').querySelectorAll('.card.new').forEach((c) => c.classList.remove('new'));
 
   const card = document.createElement('div');
   card.className = 'card new';
@@ -185,7 +260,7 @@ function addItem(blob, name) {
     </div>`;
   // Name kommt vom anderen Gerät – nur als Text einsetzen, nie als HTML.
   const meta = card.querySelector('.meta');
-  meta.textContent = `${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${formatSize(blob.size)} · ${name}`;
+  meta.textContent = `${timeNow()} · ${formatSize(blob.size)} · ${name}`;
   meta.title = name;
   if (isImage) card.querySelector('img').src = url;
   else card.querySelector('.file span').textContent = name;
@@ -201,14 +276,8 @@ function addItem(blob, name) {
     shareBtn.onclick = () => navigator.share({ files: [file] }).catch(() => {});
   }
 
-  card.querySelector('[data-act=del]').onclick = () => {
-    items.delete(id);
-    URL.revokeObjectURL(url);
-    card.remove();
-    if (!items.size) $('empty').hidden = false;
-  };
-
-  $('grid').prepend(card);
+  removeOnDelete(card, id, url);
+  prependCard(card);
 
   if (isImage) {
     const copyBtn = card.querySelector('[data-act=copy]');
@@ -221,14 +290,73 @@ function addItem(blob, name) {
   }
 }
 
+// Ablauf einer Datei: start → chunk, chunk, … → end. Der Empfänger antwortet mit progress und am Ende mit ack.
 function onData(conn, msg) {
-  if (msg?.kind === 'file') {
-    addItem(new Blob([msg.data], { type: msg.type || 'application/octet-stream' }), String(msg.name || 'datei'));
-    conn.send({ kind: 'ack', id: msg.id });
-  } else if (msg?.kind === 'ack') {
-    const pending = pendingAcks.get(msg.id);
-    if (pending && --pending.remaining <= 0) pending.resolve();
+  switch (msg?.kind) {
+    case 'start': {
+      const name = String(msg.name || 'datei');
+      const size = Number(msg.size) || 0;
+      const el = document.createElement('div');
+      el.className = 'transfer';
+      el.innerHTML = '<span></span><progress max="1" value="0"></progress>';
+      el.querySelector('span').textContent = `Empfange ${name} – ${formatSize(size)} …`;
+      $('incoming').append(el);
+      incoming.set(msg.id, { conn, name, type: msg.type || 'application/octet-stream', size, chunks: [], received: 0, el });
+      watchIncoming(msg.id);
+      break;
+    }
+    case 'chunk': {
+      const t = incoming.get(msg.id);
+      if (!t) return;
+      t.chunks.push(msg.data);
+      t.received += msg.data.byteLength;
+      t.el.querySelector('progress').value = t.size ? t.received / t.size : 1;
+      conn.send({ kind: 'progress', id: msg.id, received: t.received });
+      watchIncoming(msg.id);
+      break;
+    }
+    case 'end': {
+      const t = incoming.get(msg.id);
+      if (!t) return;
+      incoming.delete(msg.id);
+      clearTimeout(t.timer);
+      t.el.remove();
+      addItem(new Blob(t.chunks, { type: t.type }), t.name);
+      conn.send({ kind: 'ack', id: msg.id });
+      break;
+    }
+    case 'text':
+      addText(String(msg.text));
+      conn.send({ kind: 'ack', id: msg.id });
+      break;
+    case 'progress':
+      outgoing.get(msg.id)?.onProgress(conn, msg.received);
+      break;
+    case 'ack':
+      outgoing.get(msg.id)?.onAck(conn);
+      break;
   }
+}
+
+// Halb empfangene Dateien verwerfen – wenn die Verbindung abbricht oder zu lange nichts mehr kommt
+// (WebRTC meldet das Ende einer Verbindung manchmal erst sehr spät).
+function abortIncoming(id) {
+  const t = incoming.get(id);
+  if (!t) return;
+  clearTimeout(t.timer);
+  t.el.remove();
+  incoming.delete(id);
+  showToast(`Empfang von ${t.name} abgebrochen`);
+}
+
+function watchIncoming(id) {
+  const t = incoming.get(id);
+  clearTimeout(t.timer);
+  t.timer = setTimeout(() => abortIncoming(id), STALL_MS);
+}
+
+function dropIncoming(conn) {
+  for (const [id, t] of incoming) if (t.conn === conn) abortIncoming(id);
 }
 
 // ---------- Senden ----------
@@ -248,6 +376,55 @@ async function shrink(file) {
 
 let getTargets; // liefert die offenen Verbindungen, an die gesendet wird (Host: alle Geräte, sonst: der Host)
 
+// Verfolgt die Rückmeldungen aller Empfänger einer Sendung.
+function transfer(targets, onUpdate = () => {}) {
+  const received = new Map(targets.map((c) => [c, 0]));
+  const acked = new Set();
+  let waiters = [];
+  const wake = () => { const w = waiters; waiters = []; w.forEach((fn) => fn()); };
+  return {
+    minReceived: () => Math.min(...received.values()),
+    allAcked: () => acked.size === targets.length,
+    onProgress(conn, n) { received.set(conn, n); onUpdate(); wake(); },
+    onAck(conn) { acked.add(conn); wake(); },
+    // wartet, bis cond() stimmt – oder bricht ab, wenn zu lange keine Rückmeldung kommt
+    waitUntil(cond) {
+      return new Promise((resolve, reject) => {
+        if (cond()) return resolve();
+        const timer = setTimeout(() => reject(new Error('Keine Rückmeldung vom anderen Gerät – Verbindung abgebrochen?')), STALL_MS);
+        const check = () => {
+          if (cond()) { clearTimeout(timer); resolve(); } else waiters.push(check);
+        };
+        waiters.push(check);
+      });
+    },
+  };
+}
+
+async function sendFile(file, targets, onUpdate) {
+  const id = crypto.randomUUID();
+  const t = transfer(targets, () => onUpdate(t.minReceived()));
+  outgoing.set(id, t);
+  try {
+    for (const c of targets) c.send({ kind: 'start', id, name: file.name || 'datei', type: file.type, size: file.size });
+    for (let offset = 0; offset < file.size; offset += CHUNK) {
+      await t.waitUntil(() => offset - t.minReceived() < WINDOW);
+      const data = await file.slice(offset, offset + CHUNK).arrayBuffer();
+      for (const c of targets) c.send({ kind: 'chunk', id, data });
+    }
+    for (const c of targets) c.send({ kind: 'end', id });
+    await t.waitUntil(t.allAcked);
+  } finally {
+    outgoing.delete(id);
+  }
+}
+
+function showProgress(value) {
+  const box = $('sendprogress');
+  box.hidden = value === null;
+  if (value !== null) box.querySelector('progress').value = value;
+}
+
 async function sendFiles(files, { isPhoto = false } = {}) {
   const status = $('sendstatus');
   if (!files.length) return;
@@ -257,16 +434,13 @@ async function sendFiles(files, { isPhoto = false } = {}) {
     for (const [i, original] of files.entries()) {
       const file = isPhoto ? await shrink(original) : original;
       const label = files.length > 1 ? ` (${i + 1}/${files.length})` : '';
-      setStatus(status, `Sende ${file.name}${label} – ${formatSize(file.size)} …`);
-      const id = crypto.randomUUID();
-      const acked = new Promise((resolve, reject) => {
-        pendingAcks.set(id, { remaining: targets.length, resolve });
-        // großzügige Zeitgrenze: 30 s plus 1 s pro 100 KB
-        setTimeout(() => reject(new Error('Keine Bestätigung vom anderen Gerät')), 30000 + file.size / 100);
+      const total = formatSize(file.size);
+      setStatus(status, `Sende ${file.name}${label} – ${total} …`);
+      showProgress(0);
+      await sendFile(file, targets, (done) => {
+        setStatus(status, `Sende ${file.name}${label} – ${formatSize(done)} von ${total}`);
+        showProgress(file.size ? done / file.size : 1);
       });
-      const data = await file.arrayBuffer();
-      for (const conn of targets) conn.send({ kind: 'file', id, name: file.name || 'datei', type: file.type, data });
-      await acked.finally(() => pendingAcks.delete(id));
     }
     const where = isHost && targets.length > 1 ? `an ${targets.length} Geräte` : 'angekommen';
     setStatus(status, `✓ ${files.length > 1 ? files.length + ' Dateien' : files[0].name} ${where}`, 'ok');
@@ -274,7 +448,42 @@ async function sendFiles(files, { isPhoto = false } = {}) {
   } catch (e) {
     setStatus(status, 'Fehler: ' + e.message, 'err');
   }
+  showProgress(null);
 }
+
+async function sendText(text) {
+  const status = $('sendstatus');
+  try {
+    const targets = await getTargets();
+    if (!targets.length) throw new Error('Noch kein Gerät verbunden');
+    const id = crypto.randomUUID();
+    const t = transfer(targets);
+    outgoing.set(id, t);
+    try {
+      for (const c of targets) c.send({ kind: 'text', id, text });
+      await t.waitUntil(t.allAcked);
+    } finally {
+      outgoing.delete(id);
+    }
+    setStatus(status, `✓ Text ${isHost && targets.length > 1 ? `an ${targets.length} Geräte gesendet` : 'angekommen'}`, 'ok');
+    navigator.vibrate?.(60);
+    return true;
+  } catch (e) {
+    setStatus(status, 'Fehler: ' + e.message, 'err');
+    return false;
+  }
+}
+
+$('textform').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('text').value;
+  if (!text.trim()) return;
+  if (await sendText(text)) $('text').value = '';
+});
+// Strg/⌘ + Enter sendet, Enter allein macht eine neue Zeile
+$('text').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) $('textform').requestSubmit();
+});
 
 $('camera').addEventListener('change', (e) => {
   const files = [...e.target.files];
@@ -293,9 +502,10 @@ addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; document
 addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
 addEventListener('dragover', (e) => e.preventDefault());
 addEventListener('drop', (e) => {
-  e.preventDefault();
   dragDepth = 0;
   document.body.classList.remove('dragging');
+  if (!e.dataTransfer.files.length) return; // gezogener Text landet normal im Textfeld
+  e.preventDefault();
   sendFiles([...e.dataTransfer.files]);
 });
 
@@ -355,7 +565,7 @@ function host() {
   peer.on('connection', (conn) => {
     conn.on('open', () => { conns.add(conn); updateStatus(); });
     conn.on('data', (msg) => onData(conn, msg));
-    conn.on('close', () => { conns.delete(conn); updateStatus(); });
+    conn.on('close', () => { conns.delete(conn); dropIncoming(conn); updateStatus(); });
   });
 }
 
@@ -381,6 +591,7 @@ function client() {
       c.on('data', (msg) => onData(c, msg));
       c.on('close', () => {
         conn = null;
+        dropIncoming(c);
         setStatus(status, 'Verbindung getrennt – verbinde neu …');
         // automatisch neu verbinden, damit auch ohne eigenes Senden weiter empfangen wird
         setTimeout(() => connect().catch((e) => setStatus(status, e.message, 'err')), 3000);
