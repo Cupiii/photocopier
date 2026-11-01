@@ -1,6 +1,7 @@
 # photocopier
 
-Mit dem Handy ein Foto machen und es am Desktop direkt in die Zwischenablage kopieren.
+Mit dem Handy ein Foto machen und es am Desktop direkt in die Zwischenablage kopieren –
+und Dateien in beide Richtungen teilen: Handy ↔ Rechner oder Rechner ↔ Rechner.
 
 ## Variante 1: Kostenlos in der Cloud (ohne Node.js)
 
@@ -16,11 +17,17 @@ Alternativ funktionieren auch Netlify oder Cloudflare Pages (auch mit privatem R
 2. QR-Code mit dem Handy scannen (das Handy darf auch im Mobilfunknetz sein).
 3. Foto machen → am Desktop **Kopieren** klicken → mit Strg/⌘ + V einfügen.
 
+**Dateien teilen:** Auf beiden Seiten gibt es **📎 Dateien senden** (am Rechner auch per Drag & Drop
+ins Fenster). Den Link kann man ebenso an einem zweiten Rechner öffnen, um Dateien zwischen
+Rechnern zu tauschen. Was der Rechner mit dem QR-Code sendet, geht an alle verbundenen Geräte;
+die verbundenen Geräte senden an diesen Rechner. Empfangene Dateien lassen sich herunterladen,
+Bilder zusätzlich in die Zwischenablage kopieren (am Handy auch über „Teilen“ in der Galerie sichern).
+
 Der Handy-Link bleibt pro Desktop-Browser gleich und kann als Lesezeichen gespeichert werden.
 Mit „↻ Neuen Link erzeugen“ bekommt der Desktop einen neuen Link; der alte funktioniert dann nicht mehr.
 In seltenen Netzwerken (z. B. strenge Firmen-Firewalls) kann die Direktverbindung scheitern.
 
-## Variante 2: Lokal mit Node.js
+## Variante 2: Lokal mit Node.js (nur Fotos vom Handy zum Rechner)
 
 Voraussetzung: [Node.js](https://nodejs.org) ab Version 18. Es werden keine Pakete installiert.
 

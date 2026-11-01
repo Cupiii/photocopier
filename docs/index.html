@@ -13,85 +13,103 @@
   }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, sans-serif; }
+  body.dragging main { outline: 3px dashed var(--accent); outline-offset: -8px; }
   [hidden] { display: none !important; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px; min-height: 100dvh; }
+  h1 { margin: 0 0 8px; font-size: 28px; }
+  h2 { font-size: 18px; margin: 32px 0 12px; }
   p { margin: 0 0 6px; color: var(--muted); }
   code { color: var(--fg); background: var(--card); border: 1px solid var(--line); padding: 1px 6px; border-radius: 6px; word-break: break-all; }
-  button { font: inherit; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff; font-weight: 600; }
-  button.ghost { background: transparent; color: var(--muted); padding: 8px; }
+  button, .btn { font: inherit; border: 0; border-radius: 8px; padding: 8px 14px; cursor: pointer; background: var(--accent); color: #fff;
+                 font-weight: 600; text-decoration: none; display: inline-block; }
+  button.ghost, .btn.ghost { background: transparent; color: var(--muted); padding: 8px; }
   button.done { background: var(--ok); }
   .ok { color: var(--ok); } .err { color: var(--err); }
+  input[type=file] { display: none; }
 
-  /* Desktop */
-  #desk { max-width: 1100px; margin: 0 auto; padding: 32px 16px; }
-  #desk header { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; margin-bottom: 32px; }
-  #desk h1 { margin: 0 0 8px; font-size: 28px; }
+  #host-head { display: flex; gap: 32px; align-items: center; flex-wrap: wrap; }
+  #host-head > div:last-child { flex: 1 1 320px; min-width: 0; }
   #qr { background: #fff; padding: 10px; border-radius: 12px; line-height: 0; }
   #qr:empty { display: none; }
-  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
-  .card.new { outline: 3px solid var(--accent); }
-  .card img { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0000000d; cursor: pointer; }
-  .bar { display: flex; gap: 8px; padding: 10px; align-items: center; }
-  .bar span { flex: 1; color: var(--muted); font-size: 14px; }
-  #empty { color: var(--muted); padding: 48px 0; text-align: center; border: 2px dashed var(--line); border-radius: 14px; }
-  .opt { font-size: 14px; color: var(--muted); margin-top: 10px; display: block; }
-  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg);
-           padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; text-align: center; }
-  #toast.show { opacity: 1; }
+  #client-head { text-align: center; }
+  #status { font-weight: 500; margin-top: 16px; }
 
-  /* Handy */
-  #phone { min-height: 100dvh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-           gap: 20px; padding: 24px 16px; text-align: center; }
-  #phone h1 { margin: 0; font-size: 22px; }
-  label.shoot { display: flex; align-items: center; justify-content: center; width: 200px; height: 200px; border-radius: 50%;
+  .actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; margin-top: 24px; }
+  body.client.touch .actions { flex-direction: column; }
+  label.shoot { display: flex; align-items: center; justify-content: center; width: 180px; height: 180px; border-radius: 50%;
                 background: var(--accent); color: #fff; font-size: 20px; font-weight: 600; cursor: pointer;
                 box-shadow: 0 8px 24px rgb(0 0 0 / .2); user-select: none; -webkit-tap-highlight-color: transparent; }
   label.shoot:active { transform: scale(.96); }
-  input[type=file] { display: none; }
-  #preview { max-width: 100%; max-height: 35dvh; border-radius: 12px; }
-  #pstatus { min-height: 1.4em; font-weight: 500; }
-  .small { font-size: 14px; }
-  .small label { color: var(--muted); }
+  .opt { font-size: 14px; color: var(--muted); display: block; }
+  #sendstatus { min-height: 1.4em; margin-top: 12px; font-weight: 500; }
+  body.client.touch #sendstatus, body.client.touch .actions + .opt { text-align: center; }
+
+  #grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; display: flex; flex-direction: column; }
+  .card.new { outline: 3px solid var(--accent); }
+  .card .thumb { width: 100%; aspect-ratio: 4 / 3; object-fit: contain; background: #0000000d; }
+  .card img.thumb { cursor: pointer; }
+  .card .file { flex: 1; aspect-ratio: auto; min-height: 140px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 16px; text-align: center; }
+  .card .file b { font-size: 48px; line-height: 1; }
+  .card .file span { word-break: break-all; }
+  .bar { margin-top: auto; display: flex; gap: 4px; padding: 10px; align-items: center; }
+  .bar .meta { flex: 1; color: var(--muted); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #empty { color: var(--muted); padding: 40px 16px; text-align: center; border: 2px dashed var(--line); border-radius: 14px; }
+  #toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--fg); color: var(--bg); max-width: calc(100% - 32px);
+           padding: 10px 18px; border-radius: 999px; opacity: 0; transition: opacity .2s; pointer-events: none; text-align: center; }
+  #toast.show { opacity: 1; }
 </style>
 </head>
 <body>
-
-<main id="desk" hidden>
-  <header>
+<main>
+  <header id="host-head" hidden>
     <div id="qr"></div>
     <div>
       <h1>📷 Photocopier</h1>
-      <p>QR-Code mit dem Handy scannen, Foto machen – es erscheint hier.</p>
-      <p>Handy-Link: <code id="link">…</code>
+      <p>QR-Code mit dem Handy oder einem anderen Rechner öffnen – dann Fotos und Dateien in beide Richtungen schicken.</p>
+      <p>Link: <code id="link">…</code>
         <button id="newlink" class="ghost" title="Alter Link funktioniert danach nicht mehr">↻ Neuen Link erzeugen</button></p>
-      <p id="dstatus">Verbinde …</p>
-      <label class="opt"><input id="auto" type="checkbox" checked> Neue Fotos automatisch in die Zwischenablage kopieren (wenn dieses Fenster aktiv ist)</label>
     </div>
   </header>
-  <div id="empty">Noch keine Fotos. Warte auf das Handy …</div>
+  <header id="client-head" hidden>
+    <h1>📷 Photocopier</h1>
+  </header>
+  <p id="status">Verbinde …</p>
+
+  <section class="actions">
+    <label class="shoot touch-only" for="camera">Foto machen</label>
+    <input id="camera" type="file" accept="image/*" capture="environment">
+    <label class="btn" for="files">📎 Dateien senden</label>
+    <input id="files" type="file" multiple>
+    <span class="opt mouse-only">oder Dateien ins Fenster ziehen</span>
+  </section>
+  <label class="opt touch-only" style="margin-top: 12px"><input id="full" type="checkbox"> Fotos in Originalgröße senden</label>
+  <div id="sendstatus"></div>
+
+  <h2>Empfangen</h2>
+  <label class="opt" style="margin-bottom: 12px"><input id="auto" type="checkbox" checked> Neue Bilder automatisch in die Zwischenablage kopieren (wenn dieses Fenster aktiv ist)</label>
+  <div id="empty">Noch nichts empfangen.</div>
   <div id="grid"></div>
 </main>
-
-<main id="phone" hidden>
-  <h1>📷 Photocopier</h1>
-  <label class="shoot" for="camera">Foto machen</label>
-  <input id="camera" type="file" accept="image/*" capture="environment">
-  <img id="preview" alt="Vorschau" hidden>
-  <div id="pstatus">Verbinde mit dem Desktop …</div>
-  <div class="small"><label><input id="full" type="checkbox"> Originalgröße senden</label></div>
-  <p class="small"><label for="pick" style="text-decoration: underline; cursor: pointer;">oder Bild aus Galerie wählen</label></p>
-  <input id="pick" type="file" accept="image/*">
-</main>
-
 <div id="toast"></div>
 
 <script>
-// Handy und Desktop verbinden sich direkt per WebRTC (PeerJS). Der kostenlose PeerJS-Server
-// vermittelt nur den Verbindungsaufbau – die Fotos selbst gehen direkt vom Handy zum Desktop.
+// Geräte verbinden sich direkt per WebRTC (PeerJS). Der kostenlose PeerJS-Server vermittelt nur den
+// Verbindungsaufbau – Fotos und Dateien gehen direkt von Gerät zu Gerät.
+// Das Gerät ohne #kennung in der Adresse ist der "Host" (zeigt den QR-Code); alle, die den Link öffnen,
+// verbinden sich mit ihm. Host und verbundene Geräte können sich gegenseitig Dateien schicken.
 const PEER_OPTIONS = window.PEER_OPTIONS || {}; // nur zum lokalen Testen überschreibbar
 const MAX_EDGE = 2560;
 const $ = (id) => document.getElementById(id);
-const desktopId = location.hash.slice(1);
+const hostId = location.hash.slice(1);
+const isHost = !hostId;
+const isTouch = matchMedia('(pointer: coarse)').matches;
+const items = new Map(); // empfangene Dateien: id -> { blob, name }
+const pendingAcks = new Map(); // gesendete Datei-id -> { remaining, resolve }
+let toastTimer;
+
+document.body.classList.add(isHost ? 'host' : 'client', isTouch ? 'touch' : 'mouse');
+document.querySelectorAll(isTouch ? '.mouse-only' : '.touch-only').forEach((el) => { el.hidden = true; });
 
 function setStatus(el, text, cls = '') { el.textContent = text; el.className = cls; }
 
@@ -102,14 +120,192 @@ function storage(key, value) {
   } catch { return null; }
 }
 
-if (desktopId) phone(); else desktop();
+function showToast(text) {
+  const toast = $('toast');
+  toast.textContent = text;
+  toast.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.remove('show'), 2400);
+}
 
-// ---------- Desktop ----------
-function desktop() {
-  $('desk').hidden = false;
-  const status = $('dstatus');
-  const photos = new Map(); // id -> Blob
-  let toastTimer;
+function formatSize(bytes) {
+  if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB';
+  return (bytes / 1024 / 1024).toFixed(1).replace('.', ',') + ' MB';
+}
+
+// ---------- Empfangen ----------
+
+// Die Zwischenablage nimmt zuverlässig nur PNG – deshalb wird jedes Bild zu PNG umgewandelt.
+async function toPng(blob) {
+  if (blob.type === 'image/png') return blob;
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement('canvas');
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  canvas.getContext('2d').drawImage(bitmap, 0, 0);
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG fehlgeschlagen'))), 'image/png'));
+}
+
+async function copy(id, button, silent = false) {
+  try {
+    if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Browser unterstützt keine Bild-Zwischenablage');
+    // Promise direkt übergeben, damit die Nutzer-Geste (Klick) erhalten bleibt – wichtig für Safari.
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': toPng(items.get(id).blob) })]);
+    button.textContent = '✓ Kopiert';
+    button.classList.add('done');
+    setTimeout(() => { button.textContent = 'Kopieren'; button.classList.remove('done'); }, 2000);
+    showToast('In die Zwischenablage kopiert – jetzt mit Strg/⌘ + V einfügen');
+  } catch (e) {
+    showToast(silent ? 'Neues Bild da – zum Kopieren klicken' : 'Kopieren fehlgeschlagen: ' + e.message);
+  }
+}
+
+function canShare(file) {
+  try { return !!navigator.canShare?.({ files: [file] }); } catch { return false; }
+}
+
+function addItem(blob, name) {
+  const id = crypto.randomUUID();
+  items.set(id, { blob, name });
+  const isImage = blob.type.startsWith('image/');
+  const url = URL.createObjectURL(blob);
+  $('empty').hidden = true;
+  $('grid').querySelectorAll('.card.new').forEach((c) => c.classList.remove('new'));
+
+  const card = document.createElement('div');
+  card.className = 'card new';
+  card.innerHTML = `
+    ${isImage ? '<img class="thumb" alt="" title="Klicken zum Kopieren">' : '<div class="thumb file"><b>📄</b><span></span></div>'}
+    <div class="bar">
+      <span class="meta"></span>
+      <button class="ghost" data-act="del" title="Entfernen">🗑</button>
+      <button class="ghost" data-act="share" title="Teilen / in Fotos sichern" hidden>📤</button>
+      <a class="btn ghost" data-act="download" title="Herunterladen">⬇</a>
+      ${isImage ? '<button data-act="copy">Kopieren</button>' : ''}
+    </div>`;
+  // Name kommt vom anderen Gerät – nur als Text einsetzen, nie als HTML.
+  const meta = card.querySelector('.meta');
+  meta.textContent = `${new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })} · ${formatSize(blob.size)} · ${name}`;
+  meta.title = name;
+  if (isImage) card.querySelector('img').src = url;
+  else card.querySelector('.file span').textContent = name;
+
+  const download = card.querySelector('[data-act=download]');
+  download.href = url;
+  download.download = name;
+
+  const file = new File([blob], name, { type: blob.type });
+  const shareBtn = card.querySelector('[data-act=share]');
+  if (isTouch && canShare(file)) {
+    shareBtn.hidden = false;
+    shareBtn.onclick = () => navigator.share({ files: [file] }).catch(() => {});
+  }
+
+  card.querySelector('[data-act=del]').onclick = () => {
+    items.delete(id);
+    URL.revokeObjectURL(url);
+    card.remove();
+    if (!items.size) $('empty').hidden = false;
+  };
+
+  $('grid').prepend(card);
+
+  if (isImage) {
+    const copyBtn = card.querySelector('[data-act=copy]');
+    copyBtn.onclick = () => copy(id, copyBtn);
+    card.querySelector('img').onclick = () => copy(id, copyBtn);
+    if ($('auto').checked && document.hasFocus()) copy(id, copyBtn, true);
+    else showToast('Neues Bild empfangen');
+  } else {
+    showToast('Datei empfangen: ' + name);
+  }
+}
+
+function onData(conn, msg) {
+  if (msg?.kind === 'file') {
+    addItem(new Blob([msg.data], { type: msg.type || 'application/octet-stream' }), String(msg.name || 'datei'));
+    conn.send({ kind: 'ack', id: msg.id });
+  } else if (msg?.kind === 'ack') {
+    const pending = pendingAcks.get(msg.id);
+    if (pending && --pending.remaining <= 0) pending.resolve();
+  }
+}
+
+// ---------- Senden ----------
+
+async function shrink(file) {
+  if ($('full').checked) return file;
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => null);
+  if (!bitmap) return file;
+  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bitmap.width * scale);
+  canvas.height = Math.round(bitmap.height * scale);
+  canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.9));
+  return blob ? new File([blob], `foto-${Date.now()}.jpg`, { type: 'image/jpeg' }) : file;
+}
+
+let getTargets; // liefert die offenen Verbindungen, an die gesendet wird (Host: alle Geräte, sonst: der Host)
+
+async function sendFiles(files, { isPhoto = false } = {}) {
+  const status = $('sendstatus');
+  if (!files.length) return;
+  try {
+    const targets = await getTargets();
+    if (!targets.length) throw new Error('Noch kein Gerät verbunden');
+    for (const [i, original] of files.entries()) {
+      const file = isPhoto ? await shrink(original) : original;
+      const label = files.length > 1 ? ` (${i + 1}/${files.length})` : '';
+      setStatus(status, `Sende ${file.name}${label} – ${formatSize(file.size)} …`);
+      const id = crypto.randomUUID();
+      const acked = new Promise((resolve, reject) => {
+        pendingAcks.set(id, { remaining: targets.length, resolve });
+        // großzügige Zeitgrenze: 30 s plus 1 s pro 100 KB
+        setTimeout(() => reject(new Error('Keine Bestätigung vom anderen Gerät')), 30000 + file.size / 100);
+      });
+      const data = await file.arrayBuffer();
+      for (const conn of targets) conn.send({ kind: 'file', id, name: file.name || 'datei', type: file.type, data });
+      await acked.finally(() => pendingAcks.delete(id));
+    }
+    const where = isHost && targets.length > 1 ? `an ${targets.length} Geräte` : 'angekommen';
+    setStatus(status, `✓ ${files.length > 1 ? files.length + ' Dateien' : files[0].name} ${where}`, 'ok');
+    navigator.vibrate?.(60);
+  } catch (e) {
+    setStatus(status, 'Fehler: ' + e.message, 'err');
+  }
+}
+
+$('camera').addEventListener('change', (e) => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  sendFiles(files, { isPhoto: true });
+});
+$('files').addEventListener('change', (e) => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  sendFiles(files);
+});
+
+// Dateien ins Fenster ziehen
+let dragDepth = 0;
+addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+addEventListener('dragover', (e) => e.preventDefault());
+addEventListener('drop', (e) => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.body.classList.remove('dragging');
+  sendFiles([...e.dataTransfer.files]);
+});
+
+if (isHost) host(); else client();
+
+// ---------- Host (zeigt QR-Code) ----------
+function host() {
+  $('host-head').hidden = false;
+  const status = $('status');
+  const conns = new Set();
 
   // Feste ID pro Browser, damit ein Lesezeichen auf dem Handy dauerhaft funktioniert.
   const newId = () => 'photocopier-' + crypto.randomUUID().replace(/-/g, '').slice(0, 16);
@@ -119,10 +315,10 @@ function desktop() {
     storage('photocopier-id', id);
   }
 
-  // Neue Kennung = neuer Link; wer den alten Link hat, kann danach keine Fotos mehr schicken.
+  // Neue Kennung = neuer Link; wer den alten Link hat, kann danach nichts mehr schicken.
   $('newlink').onclick = () => {
-    const warning = 'Neuen Handy-Link erzeugen?\n\nDer alte Link und gespeicherte Lesezeichen funktionieren danach nicht mehr.'
-      + (photos.size ? '\nDie angezeigten Fotos werden dabei entfernt.' : '');
+    const warning = 'Neuen Link erzeugen?\n\nDer alte Link und gespeicherte Lesezeichen funktionieren danach nicht mehr.'
+      + (items.size ? '\nDie empfangenen Dateien werden dabei entfernt.' : '');
     if (!confirm(warning)) return;
     storage('photocopier-id', newId());
     peer.destroy();
@@ -138,71 +334,16 @@ function desktop() {
     $('qr').innerHTML = qr.createSvgTag({ cellSize: 5, margin: 0 });
   }
 
-  function showToast(text) {
-    const toast = $('toast');
-    toast.textContent = text;
-    toast.classList.add('show');
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove('show'), 2200);
+  function updateStatus() {
+    const n = conns.size;
+    if (!n) setStatus(status, '● Bereit – warte auf ein Gerät', 'ok');
+    else setStatus(status, `● ${n === 1 ? '1 Gerät' : n + ' Geräte'} verbunden`, 'ok');
   }
 
-  // Die Zwischenablage nimmt zuverlässig nur PNG – deshalb wird jedes Foto zu PNG umgewandelt.
-  async function toPng(blob) {
-    if (blob.type === 'image/png') return blob;
-    const bitmap = await createImageBitmap(blob);
-    const canvas = document.createElement('canvas');
-    canvas.width = bitmap.width;
-    canvas.height = bitmap.height;
-    canvas.getContext('2d').drawImage(bitmap, 0, 0);
-    return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('PNG fehlgeschlagen'))), 'image/png'));
-  }
-
-  async function copy(pid, button, silent = false) {
-    try {
-      if (!navigator.clipboard || !window.ClipboardItem) throw new Error('Browser unterstützt keine Bild-Zwischenablage');
-      // Promise direkt übergeben, damit die Nutzer-Geste (Klick) erhalten bleibt – wichtig für Safari.
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': toPng(photos.get(pid)) })]);
-      button.textContent = '✓ Kopiert';
-      button.classList.add('done');
-      setTimeout(() => { button.textContent = 'Kopieren'; button.classList.remove('done'); }, 2000);
-      showToast('In die Zwischenablage kopiert – jetzt mit Strg/⌘ + V einfügen');
-    } catch (e) {
-      showToast(silent ? 'Neues Foto da – zum Kopieren klicken' : 'Kopieren fehlgeschlagen: ' + e.message);
-    }
-  }
-
-  function addPhoto(blob) {
-    const pid = crypto.randomUUID();
-    photos.set(pid, blob);
-    $('empty').hidden = true;
-    $('grid').querySelectorAll('.card.new').forEach((c) => c.classList.remove('new'));
-    const url = URL.createObjectURL(blob);
-    const card = document.createElement('div');
-    card.className = 'card new';
-    card.innerHTML = `
-      <img src="${url}" alt="Foto" title="Klicken zum Kopieren">
-      <div class="bar">
-        <span>${new Date().toLocaleTimeString('de-DE')} · ${Math.round(blob.size / 1024)} KB</span>
-        <button class="ghost" data-act="del" title="Löschen">🗑</button>
-        <a href="${url}" download="foto-${Date.now()}.${blob.type.split('/')[1] || 'jpg'}" title="Herunterladen"><button class="ghost">⬇</button></a>
-        <button data-act="copy">Kopieren</button>
-      </div>`;
-    const copyBtn = card.querySelector('[data-act=copy]');
-    copyBtn.onclick = () => copy(pid, copyBtn);
-    card.querySelector('img').onclick = () => copy(pid, copyBtn);
-    card.querySelector('[data-act=del]').onclick = () => {
-      photos.delete(pid);
-      URL.revokeObjectURL(url);
-      card.remove();
-      if (!photos.size) $('empty').hidden = false;
-    };
-    $('grid').prepend(card);
-    if ($('auto').checked && document.hasFocus()) copy(pid, copyBtn, true);
-    else showToast('Neues Foto da – zum Kopieren klicken');
-  }
+  getTargets = async () => [...conns].filter((c) => c.open);
 
   const peer = new Peer(id, PEER_OPTIONS);
-  peer.on('open', () => setStatus(status, '● Bereit – warte auf das Handy', 'ok'));
+  peer.on('open', updateStatus);
   peer.on('disconnected', () => {
     setStatus(status, 'Verbindung zum Vermittlungsserver verloren – verbinde neu …');
     setTimeout(() => peer.reconnect(), 2000);
@@ -212,85 +353,50 @@ function desktop() {
     else setStatus(status, 'Fehler: ' + e.message, 'err');
   });
   peer.on('connection', (conn) => {
-    conn.on('open', () => setStatus(status, '● Handy verbunden', 'ok'));
-    conn.on('data', (msg) => {
-      if (msg?.kind !== 'photo') return;
-      addPhoto(new Blob([msg.data], { type: msg.type }));
-      conn.send({ kind: 'ack' });
-    });
-    conn.on('close', () => setStatus(status, '● Bereit – warte auf das Handy', 'ok'));
+    conn.on('open', () => { conns.add(conn); updateStatus(); });
+    conn.on('data', (msg) => onData(conn, msg));
+    conn.on('close', () => { conns.delete(conn); updateStatus(); });
   });
 }
 
-// ---------- Handy ----------
-function phone() {
-  $('phone').hidden = false;
-  const status = $('pstatus');
+// ---------- Verbundenes Gerät (Link mit #kennung geöffnet) ----------
+function client() {
+  $('client-head').hidden = false;
+  const status = $('status');
+  if (isTouch) status.style.textAlign = 'center';
   const peer = new Peer(PEER_OPTIONS);
   let conn = null;
-  let pendingAck = null;
 
   function connect() {
     return new Promise((resolve, reject) => {
       if (conn?.open) return resolve(conn);
-      const c = peer.connect(desktopId, { reliable: true });
-      const timer = setTimeout(() => reject(new Error('Desktop nicht erreichbar – ist die Seite dort offen?')), 15000);
+      const c = peer.connect(hostId, { reliable: true });
+      const timer = setTimeout(() => reject(new Error('Anderes Gerät nicht erreichbar – ist die Seite dort offen?')), 15000);
       c.on('open', () => {
         clearTimeout(timer);
         conn = c;
-        setStatus(status, '● Mit Desktop verbunden', 'ok');
+        setStatus(status, '● Verbunden', 'ok');
         resolve(c);
       });
-      c.on('data', (msg) => { if (msg?.kind === 'ack' && pendingAck) pendingAck(); });
-      c.on('close', () => { conn = null; setStatus(status, 'Verbindung getrennt – wird beim nächsten Foto neu aufgebaut'); });
+      c.on('data', (msg) => onData(c, msg));
+      c.on('close', () => {
+        conn = null;
+        setStatus(status, 'Verbindung getrennt – verbinde neu …');
+        // automatisch neu verbinden, damit auch ohne eigenes Senden weiter empfangen wird
+        setTimeout(() => connect().catch((e) => setStatus(status, e.message, 'err')), 3000);
+      });
       c.on('error', (e) => { clearTimeout(timer); reject(e); });
     });
   }
 
+  getTargets = async () => [await connect()];
+
   peer.on('open', () => connect().catch((e) => setStatus(status, e.message, 'err')));
   peer.on('disconnected', () => setTimeout(() => peer.reconnect(), 2000));
   peer.on('error', (e) => {
-    if (e.type === 'peer-unavailable') setStatus(status, 'Desktop nicht gefunden – ist die Seite dort geöffnet?', 'err');
+    if (e.type === 'peer-unavailable') setStatus(status, 'Anderes Gerät nicht gefunden – ist die Seite dort geöffnet?', 'err');
     else setStatus(status, 'Fehler: ' + e.message, 'err');
   });
-
-  async function shrink(file) {
-    if ($('full').checked) return file;
-    const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' }).catch(() => null);
-    if (!bitmap) return file;
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.round(bitmap.width * scale);
-    canvas.height = Math.round(bitmap.height * scale);
-    canvas.getContext('2d').drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    return new Promise((resolve) => canvas.toBlob((b) => resolve(b || file), 'image/jpeg', 0.9));
-  }
-
-  async function handle(input) {
-    const file = input.files[0];
-    input.value = '';
-    if (!file) return;
-    $('preview').src = URL.createObjectURL(file);
-    $('preview').hidden = false;
-    setStatus(status, 'Sende …');
-    try {
-      const blob = await shrink(file);
-      const c = await connect();
-      const acked = new Promise((resolve, reject) => {
-        pendingAck = resolve;
-        setTimeout(() => reject(new Error('Keine Bestätigung vom Desktop')), 30000);
-      });
-      c.send({ kind: 'photo', type: blob.type || 'image/jpeg', data: await blob.arrayBuffer() });
-      await acked;
-      setStatus(status, '✓ Am Desktop angekommen', 'ok');
-      navigator.vibrate?.(60);
-    } catch (e) {
-      setStatus(status, 'Fehler: ' + e.message, 'err');
-    }
-  }
-
-  $('camera').addEventListener('change', (e) => handle(e.target));
-  $('pick').addEventListener('change', (e) => handle(e.target));
 }
 </script>
 </body>
