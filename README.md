@@ -1,6 +1,6 @@
 # photocopier
 
-Fotos und Dateien zwischen Handy und Rechner (oder zwischen zwei Rechnern) schicken – direkt im
+Fotos, Dateien und Texte zwischen Handy und Rechner (oder zwischen zwei Rechnern) schicken – direkt im
 Browser, ohne App, ohne Konto, ohne Cloud-Speicher.
 
 Typischer Fall: Mit dem Handy ein Foto machen, und Sekunden später liegt es am Rechner in der
@@ -31,6 +31,13 @@ Fotos werden vor dem Senden auf höchstens 2560 Pixel verkleinert. Mit dem Häkc
 - Empfangene Dateien erscheinen unter **Empfangen** und lassen sich herunterladen.
   Bilder können zusätzlich in die Zwischenablage kopiert werden, am Handy auch über **📤 Teilen**
   z. B. in der Galerie gespeichert werden.
+
+### Text und Links schicken
+
+Ins Feld **„Text oder Link senden …“** tippen oder einfügen und **Senden** drücken
+(am Rechner auch Strg/⌘ + Enter). Beim Empfänger erscheint der Text mit **Kopieren**-Knopf;
+ist das Fenster gerade aktiv, liegt er schon in der Zwischenablage. Ist der Text ein Link,
+gibt es zusätzlich **↗** zum Öffnen.
 
 **Wer schickt an wen?** Der Rechner, der den QR-Code anzeigt, ist die Zentrale. Was er sendet,
 geht an alle verbundenen Geräte. Die verbundenen Geräte senden an die Zentrale, aber nicht
@@ -84,7 +91,8 @@ Damit sich zwei Browser finden, braucht es am Anfang einen Vermittler:
    der TURN-Server reicht nur verschlüsselte Pakete durch und kann die Dateien nicht lesen.
 3. **Verbindung (DataChannel):** Steht die Verbindung, schicken sich die Browser die Dateien
    über einen verschlüsselten WebRTC-Datenkanal (DTLS). Der Vermittlungsserver sieht die
-   Dateien nie.
+   Dateien nie. Dateien gehen in Stücken von 256 KB raus; der Empfänger meldet zurück, wie
+   viel angekommen ist. Daraus entsteht der Fortschrittsbalken auf beiden Seiten.
 
 Die Bibliothek **PeerJS** nimmt der App dabei die Details ab. Der QR-Code wird mit der
 Bibliothek **qrcode-generator** erzeugt; beide werden von einem CDN geladen.
@@ -97,21 +105,22 @@ zuverlässig nur PNG-Bilder annehmen, wandelt die App jedes Bild vorher in PNG u
 - **Keine Speicherung:** Empfangene Dateien liegen nur im geöffneten Browser-Tab. Neu laden
   oder schließen – und sie sind weg. Wichtiges also herunterladen.
 - **Beide Geräte müssen gleichzeitig online sein.** Eine Datei für später hinterlegen geht nicht.
-- **Kein Fortschrittsbalken:** Bei großen Dateien steht nur „Sende …“ da.
-- **Sehr große Dateien** (mehrere hundert MB, z. B. lange Videos) können scheitern, weil die
-  ganze Datei auf einmal in den Speicher geladen wird – besonders auf Handys.
+- **Sehr große Dateien** (mehrere hundert MB, z. B. lange Videos) können beim **Empfänger**
+  scheitern: Er hält die Datei bis zum Herunterladen komplett im Arbeitsspeicher – auf Handys
+  ist der knapp. (Der Sender liest die Datei dagegen stückweise.)
 - **Keine Übertragung zwischen zwei verbundenen Geräten:** Alles läuft über den Rechner mit
   dem QR-Code. Zwei Handys können sich nicht direkt etwas schicken.
-- **Kein Text, keine Links:** Nur Dateien und Fotos; eine kopierte Textstelle lässt sich nicht
-  direkt übertragen.
+- **Übertragungen nicht fortsetzbar:** Bricht die Verbindung mitten in einer Datei ab, muss
+  sie neu gesendet werden.
 - **Kein Passwort:** Schutz bietet nur der zufällige Link.
 - **Strenge Netzwerke:** In manchen Firmen- oder Hotel-Netzen kommt keine direkte Verbindung
   zustande. Dann hilft der kostenlose TURN-Server von PeerJS aus – der ist aber langsamer und
   ohne Garantie; ganz restriktive Netze blockieren auch ihn.
 - **Abhängig von fremden Diensten:** Fällt der kostenlose PeerJS-Server oder ein CDN aus,
   funktioniert die App in der Zeit nicht.
-- **Zwischenablage nur für Bilder**, und das Kopieren klappt nicht in jedem Browser
-  (am zuverlässigsten in Chrome, Edge und Safari; in Firefox erst ab neueren Versionen).
+- **Zwischenablage nur für Bilder und Text** (keine anderen Dateien), und das Kopieren von
+  Bildern klappt nicht in jedem Browser (am zuverlässigsten in Chrome, Edge und Safari;
+  in Firefox erst ab neueren Versionen).
 
 ## Selbst hosten
 
